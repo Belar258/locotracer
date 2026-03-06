@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>LocoTracer</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+body { margin:0; background:#111; color:white; font-family:Arial; text-align:center; }
+#map { height:90vh; width:100%; }
+#info { padding:10px; background:#222; }
+</style>
+</head>
+
+<body>
+
+<h2> LocoTracer - TRAIN01</h2>
+
+<div id="map"></div>
+
+<div id="info">
+Velocidade: <span id="speed">0</span> km/h |
+Conflito: <span id="conflict">0</span> |
+Última atualização: <span id="timestamp">--</span>
+</div>
+
+<script type="module">
+
+//  IMPORTA FIREBASE
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+//  COLE AQUI SUA CONFIG DO FIREBASE
+const firebaseConfig = {
+ apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
+  authDomain: "locotracer.firebaseapp.com",
+  databaseURL: "https://locotracer-default-rtdb.europe- west1.firebasedatabase.app",
+  projectId: "locotracer",
+  storageBucket: "locotracer.firebasestorage.app",
+  messagingSenderId: "364605919766",
+  appId: "1:364605919766:web:c50f21644bf289fa29db37",
+  measurementId: "G-W0XJFNLHK8"
+ 
+};
+
+// Inicializa
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+//  Mapa
+var map = L.map('map').setView([-25.9653, 32.5892], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'© OpenStreetMap'
+}).addTo(map);
+
+var marker = L.marker([-25.9653, 32.5892]).addTo(map);
+
+//  Escuta dados em tempo real
+const trainRef = ref(db, 'trains/TRAIN01');
+
+onValue(trainRef, (snapshot) => {
+
+  const data = snapshot.val();
+
+  if (data) {
+
+    marker.setLatLng([data.lat, data.lng]);
+    map.setView([data.lat, data.lng]);
+
+    document.getElementById("speed").innerText = data.speed;
+    document.getElementById("conflict").innerText = data.conflict;
+    document.getElementById("timestamp").innerText = 
+      new Date(data.timestamp).toLocaleString();
+  }
+
+});
+
+</script>
+
+</body>
+</html>
