@@ -1,80 +1,73 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <title>LocoTracer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-body { margin:0; background:#111; color:white; font-family:Arial; text-align:center; }
-#map { height:90vh; width:100%; }
-#info { padding:10px; background:#222; }
+#map{
+height:100vh;
+}
 </style>
+
 </head>
 
 <body>
 
-<h2> LocoTracer - TRAIN01</h2>
-
 <div id="map"></div>
 
-<div id="info">
-Velocidade: <span id="speed">0</span> km/h |
-Conflito: <span id="conflict">0</span> |
-Última atualização: <span id="timestamp">--</span>
-</div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<script type="module">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-//  IMPORTA FIREBASE
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+<script>
 
-//  COLE AQUI SUA CONFIG DO FIREBASE
-const firebaseConfig = {
- apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
-  authDomain: "locotracer.firebaseapp.com",
-  databaseURL: "https://locotracer-default-rtdb.europe- west1.firebasedatabase.app",
-  projectId: "locotracer",
-  storageBucket: "locotracer.firebasestorage.app",
-  messagingSenderId: "364605919766",
-  appId: "1:364605919766:web:c50f21644bf289fa29db37",
-  measurementId: "G-W0XJFNLHK8"
- 
+// CONFIG FIREBASE
+var firebaseConfig = {
+databaseURL: "https://locotracer-default-rtdb.europe-west1.firebasedatabase.app/"
 };
 
-// Inicializa
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
 
-//  Mapa
-var map = L.map('map').setView([-25.9653, 32.5892], 13);
+// MAPA
+var map = L.map('map').setView([-25.96, 32.58], 10);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution:'© OpenStreetMap'
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19
 }).addTo(map);
 
-var marker = L.marker([-25.9653, 32.5892]).addTo(map);
+// MARCADORES
+var markers = {};
 
-//  Escuta dados em tempo real
-const trainRef = ref(db, 'trains/TRAIN01');
+// LER TRENS
+db.ref("trains").on("value", function(snapshot){
 
-onValue(trainRef, (snapshot) => {
+var trains = snapshot.val();
 
-  const data = snapshot.val();
+for(var id in trains){
 
-  if (data) {
+var train = trains[id];
+var lat = train.lat;
+var lng = train.lng;
+var name = train.name;
 
-    marker.setLatLng([data.lat, data.lng]);
-    map.setView([data.lat, data.lng]);
+if(markers[id]){
 
-    document.getElementById("speed").innerText = data.speed;
-    document.getElementById("conflict").innerText = data.conflict;
-    document.getElementById("timestamp").innerText = 
-      new Date(data.timestamp).toLocaleString();
-  }
+markers[id].setLatLng([lat,lng]);
+
+}else{
+
+markers[id] = L.marker([lat,lng])
+.addTo(map)
+.bindPopup(name);
+
+}
+
+}
 
 });
 
