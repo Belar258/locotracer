@@ -1,1 +1,107 @@
-<!DOCTYPE html> <html> <head> <meta charset="utf-8"> <title>LocoTracer</title> <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/> <style> #map{ height:100vh; } </style> </head> <body> <div id="map"></div> <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script> <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script> <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script> <script> // CONFIG FIREBASE var firebaseConfig = { apiKey: "API_KEY", authDomain: "locotracer.firebaseapp.com", databaseURL: "https://locotracer-default-rtdb.europe-west1.firebasedatabase.app", projectId: "locotracer", storageBucket: "locotracer.appspot.com", messagingSenderId: "123456", appId: "APP_ID" }; firebase.initializeApp(firebaseConfig); var database = firebase.database(); // CRIAR MAPA var map = L.map('map').setView([-25.96, 32.58], 13); // CAMADA DO MAPA L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'Map data © OpenStreetMap' }).addTo(map); // ICONES var trainIcon = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png", iconSize: [32,32] }); var derailIcon = L.icon({ iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png", iconSize: [32,32] }); // MARCADOR var marker = L.marker([-25.96,32.58],{icon:trainIcon}).addTo(map); // LER DADOS DO FIREBASE database.ref("trains/TRAIN01").on("value", function(snapshot){ var data = snapshot.val(); var lat = data.lat; var lng = data.lng; var derail = data.derailment; // ATUALIZAR POSIÇÃO marker.setLatLng([lat,lng]); // CENTRALIZAR MAPA map.setView([lat,lng]); // VERIFICAR DESCARRILAMENTO if(derail == 1){ marker.setIcon(derailIcon); alert("⚠️ ALERTA: Possível descarrilamento detectado!"); } else{ marker.setIcon(trainIcon); } }); </script> </body> </html>
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LocoTracer</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+
+<style>
+#map{
+height:100vh;
+}
+</style>
+
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<script>
+
+// CONFIG FIREBASE
+var firebaseConfig = {
+apiKey: "API_KEY",
+authDomain: "locotracer.firebaseapp.com",
+databaseURL: "https://locotracer-default-rtdb.europe-west1.firebasedatabase.app",
+projectId: "locotracer",
+storageBucket: "locotracer.appspot.com",
+messagingSenderId: "123456",
+appId: "APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+var database = firebase.database();
+
+
+// CRIAR MAPA
+var map = L.map('map').setView([-25.96, 32.58], 13);
+
+// CAMADA DO MAPA
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+attribution:'Map data © OpenStreetMap'
+}).addTo(map);
+
+
+// ICONES
+var trainIcon = L.icon({
+iconUrl: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+iconSize: [32,32]
+});
+
+var derailIcon = L.icon({
+iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+iconSize: [32,32]
+});
+
+
+// MARCADOR
+var marker = L.marker([-25.96,32.58],{icon:trainIcon}).addTo(map);
+
+
+// LER DADOS DO FIREBASE
+database.ref("trains/TRAIN01").on("value", function(snapshot){
+
+var data = snapshot.val();
+
+var lat = data.lat;
+var lng = data.lng;
+var derail = data.derailment;
+
+
+// ATUALIZAR POSIÇÃO
+marker.setLatLng([lat,lng]);
+
+
+// CENTRALIZAR MAPA
+map.setView([lat,lng]);
+
+
+// VERIFICAR DESCARRILAMENTO
+if(derail == 1){
+
+marker.setIcon(derailIcon);
+
+alert("⚠️ ALERTA: Possível descarrilamento detectado!");
+
+}
+else{
+
+marker.setIcon(trainIcon);
+
+}
+
+});
+
+</script>
+
+</body>
+</html>
+```
