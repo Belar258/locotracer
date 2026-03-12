@@ -1,10 +1,12 @@
 ```html
 <!DOCTYPE html>
 <html>
+
 <head>
 
 <meta charset="utf-8">
-<title>LocoTracer</title>
+
+<title>RailView</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -41,6 +43,10 @@ background:#222;
 border-radius:5px;
 }
 
+.train-icon{
+font-size:26px;
+}
+
 </style>
 
 </head>
@@ -49,13 +55,13 @@ border-radius:5px;
 
 <div id="panel">
 
-<h2>🚆 LocoTracer</h2>
+<h2>🚆 RailView</h2>
 
 <div class="info">Comboio: <span id="p_name">---</span></div>
 <div class="info">Latitude: <span id="p_lat">---</span></div>
 <div class="info">Longitude: <span id="p_lng">---</span></div>
+<div class="info">Heading: <span id="p_heading">---</span></div>
 <div class="info">Estado: <span id="p_state">---</span></div>
-<div class="info">Evento: <span id="p_event">---</span></div>
 
 </div>
 
@@ -63,14 +69,14 @@ border-radius:5px;
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-// CONFIG FIREBASE
 var firebaseConfig = {
 
-apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
+  apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
   authDomain: "locotracer.firebaseapp.com",
   databaseURL: "https://locotracer-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "locotracer",
@@ -83,82 +89,68 @@ apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
 
 firebase.initializeApp(firebaseConfig);
 
-var db = firebase.database();
+var db=firebase.database();
 
-
-// MAPA
-
-var map = L.map('map').setView([-25.96,32.58],12);
+var map=L.map('map').setView([-25.96,32.58],12);
 
 L.tileLayer(
-'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-{ attribution:'© OpenStreetMap'}
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 ).addTo(map);
 
+var markers={};
 
-// ICONES
+function createTrainIcon(angle,color){
 
-var iconNormal = L.icon({
-iconUrl:"https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-iconSize:[32,32]
+return L.divIcon({
+
+className:'train-icon',
+
+html:`<div style="transform:rotate(${angle}deg);color:${color};">🚆</div>`,
+
+iconSize:[30,30]
+
 });
 
-var iconAlert = L.icon({
-iconUrl:"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-iconSize:[32,32]
-});
-
-
-// ARMAZENAR MARCADORES
-
-var markers = {};
-
-
-// FUNÇÃO PARA ATUALIZAR PAINEL
+}
 
 function updatePanel(name,data){
 
-document.getElementById("p_name").innerHTML = name;
-document.getElementById("p_lat").innerHTML = data.lat.toFixed(6);
-document.getElementById("p_lng").innerHTML = data.lng.toFixed(6);
+document.getElementById("p_name").innerHTML=name;
+document.getElementById("p_lat").innerHTML=data.lat.toFixed(6);
+document.getElementById("p_lng").innerHTML=data.lng.toFixed(6);
+document.getElementById("p_heading").innerHTML=data.heading.toFixed(1);
 
 if(data.derailment){
 
 document.getElementById("p_state").innerHTML="DESCARRILAMENTO";
 document.getElementById("p_state").style.color="red";
-document.getElementById("p_event").innerHTML="Descarrilamento detectado";
 
 }else{
 
-document.getElementById("p_state").innerHTML="Normal";
+document.getElementById("p_state").innerHTML="NORMAL";
 document.getElementById("p_state").style.color="lightgreen";
-document.getElementById("p_event").innerHTML="Nenhum";
 
 }
 
 }
-
-
-// LER TODOS OS COMBOIOS
 
 db.ref("trains").on("value",function(snapshot){
 
-var trains = snapshot.val();
+var trains=snapshot.val();
 
 for(var name in trains){
 
-var data = trains[name];
+var data=trains[name];
 
-var pos = [data.lat,data.lng];
+var pos=[data.lat,data.lng];
 
+var color=data.derailment ? "red":"blue";
 
-// CRIAR MARCADOR SE NAO EXISTE
+var icon=createTrainIcon(data.heading,color);
 
 if(!markers[name]){
 
-var icon = data.derailment ? iconAlert : iconNormal;
-
-var marker = L.marker(pos,{icon:icon}).addTo(map);
+var marker=L.marker(pos,{icon:icon}).addTo(map);
 
 marker.bindPopup(
 "<b>"+name+"</b><br>"+
@@ -166,35 +158,23 @@ marker.bindPopup(
 "Lng: "+data.lng.toFixed(6)
 );
 
-
-// AO CLICAR NO MARCADOR
-
 marker.on("click",function(){
 
-var trainName = this.trainName;
-updatePanel(trainName,trains[trainName]);
+var train=this.trainName;
+
+updatePanel(train,trains[train]);
 
 });
 
-
-marker.trainName = name;
+marker.trainName=name;
 
 markers[name]=marker;
 
 }
 
-
-// ATUALIZAR POSIÇÃO
-
 markers[name].setLatLng(pos);
 
-
-// ATUALIZAR ICONE
-
-markers[name].setIcon(data.derailment ? iconAlert : iconNormal);
-
-
-// ATUALIZAR POPUP
+markers[name].setIcon(icon);
 
 markers[name].setPopupContent(
 "<b>"+name+"</b><br>"+
@@ -209,5 +189,6 @@ markers[name].setPopupContent(
 </script>
 
 </body>
+
 </html>
 ```
