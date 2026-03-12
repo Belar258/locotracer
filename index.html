@@ -17,7 +17,7 @@ font-family:Arial;
 
 #map{
 position:absolute;
-left:250px;
+left:260px;
 top:0;
 right:0;
 bottom:0;
@@ -28,21 +28,17 @@ position:absolute;
 left:0;
 top:0;
 bottom:0;
-width:250px;
+width:260px;
 background:#111;
 color:white;
 padding:20px;
 }
 
-.status{
-padding:10px;
+.info{
 margin-top:10px;
+padding:8px;
 background:#222;
-border-radius:6px;
-}
-
-.alert{
-background:red;
+border-radius:5px;
 }
 
 </style>
@@ -55,46 +51,26 @@ background:red;
 
 <h2>🚆 LocoTracer</h2>
 
-<div class="status">
-<b>Comboio:</b> TRAIN01
-</div>
-
-<div class="status">
-<b>Latitude:</b>
-<span id="lat">--</span>
-</div>
-
-<div class="status">
-<b>Longitude:</b>
-<span id="lng">--</span>
-</div>
-
-<div class="status">
-<b>Estado:</b>
-<span id="state">Normal</span>
-</div>
-
-<div class="status">
-<b>Evento:</b>
-<span id="event">Nenhum</span>
-</div>
+<div class="info">Comboio: <span id="p_name">---</span></div>
+<div class="info">Latitude: <span id="p_lat">---</span></div>
+<div class="info">Longitude: <span id="p_lng">---</span></div>
+<div class="info">Estado: <span id="p_state">---</span></div>
+<div class="info">Evento: <span id="p_event">---</span></div>
 
 </div>
 
 <div id="map"></div>
 
-
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 
 <script>
 
 // CONFIG FIREBASE
 var firebaseConfig = {
 
- apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
+apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
   authDomain: "locotracer.firebaseapp.com",
   databaseURL: "https://locotracer-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "locotracer",
@@ -112,13 +88,11 @@ var db = firebase.database();
 
 // MAPA
 
-var map = L.map('map').setView([-25.96,32.58],13);
+var map = L.map('map').setView([-25.96,32.58],12);
 
 L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-{
-attribution:'© OpenStreetMap'
-}
+{ attribution:'© OpenStreetMap'}
 ).addTo(map);
 
 
@@ -135,59 +109,98 @@ iconSize:[32,32]
 });
 
 
-// MARCADOR
+// ARMAZENAR MARCADORES
 
-var marker = L.marker([-25.96,32.58],{icon:iconNormal}).addTo(map);
-
-
-// LER FIREBASE
-
-db.ref("trains/TRAIN01").on("value",function(snapshot){
-
-var data = snapshot.val();
-
-if(!data) return;
-
-var lat = data.lat;
-var lng = data.lng;
-var derail = data.derailment;
+var markers = {};
 
 
-// atualizar mapa
+// FUNÇÃO PARA ATUALIZAR PAINEL
 
-marker.setLatLng([lat,lng]);
-map.panTo([lat,lng]);
+function updatePanel(name,data){
 
+document.getElementById("p_name").innerHTML = name;
+document.getElementById("p_lat").innerHTML = data.lat.toFixed(6);
+document.getElementById("p_lng").innerHTML = data.lng.toFixed(6);
 
-// atualizar painel
+if(data.derailment){
 
-document.getElementById("lat").innerHTML = lat.toFixed(6);
-document.getElementById("lng").innerHTML = lng.toFixed(6);
-
-
-// estado
-
-if(derail == true){
-
-marker.setIcon(iconAlert);
-
-document.getElementById("state").innerHTML = "DESCARRILAMENTO";
-document.getElementById("state").style.color="red";
-
-var msg = "⚠ DESCARRILAMENTO detectado\n\nCoordenadas:\n"+lat+","+lng;
-
-document.getElementById("event").innerHTML = "Descarrilamento";
-
-alert(msg);
+document.getElementById("p_state").innerHTML="DESCARRILAMENTO";
+document.getElementById("p_state").style.color="red";
+document.getElementById("p_event").innerHTML="Descarrilamento detectado";
 
 }else{
 
-marker.setIcon(iconNormal);
+document.getElementById("p_state").innerHTML="Normal";
+document.getElementById("p_state").style.color="lightgreen";
+document.getElementById("p_event").innerHTML="Nenhum";
 
-document.getElementById("state").innerHTML = "Normal";
-document.getElementById("state").style.color="lightgreen";
+}
 
-document.getElementById("event").innerHTML = "Nenhum";
+}
+
+
+// LER TODOS OS COMBOIOS
+
+db.ref("trains").on("value",function(snapshot){
+
+var trains = snapshot.val();
+
+for(var name in trains){
+
+var data = trains[name];
+
+var pos = [data.lat,data.lng];
+
+
+// CRIAR MARCADOR SE NAO EXISTE
+
+if(!markers[name]){
+
+var icon = data.derailment ? iconAlert : iconNormal;
+
+var marker = L.marker(pos,{icon:icon}).addTo(map);
+
+marker.bindPopup(
+"<b>"+name+"</b><br>"+
+"Lat: "+data.lat.toFixed(6)+"<br>"+
+"Lng: "+data.lng.toFixed(6)
+);
+
+
+// AO CLICAR NO MARCADOR
+
+marker.on("click",function(){
+
+var trainName = this.trainName;
+updatePanel(trainName,trains[trainName]);
+
+});
+
+
+marker.trainName = name;
+
+markers[name]=marker;
+
+}
+
+
+// ATUALIZAR POSIÇÃO
+
+markers[name].setLatLng(pos);
+
+
+// ATUALIZAR ICONE
+
+markers[name].setIcon(data.derailment ? iconAlert : iconNormal);
+
+
+// ATUALIZAR POPUP
+
+markers[name].setPopupContent(
+"<b>"+name+"</b><br>"+
+"Lat: "+data.lat.toFixed(6)+"<br>"+
+"Lng: "+data.lng.toFixed(6)
+);
 
 }
 
@@ -196,7 +209,5 @@ document.getElementById("event").innerHTML = "Nenhum";
 </script>
 
 </body>
-
 </html>
 ```
-
