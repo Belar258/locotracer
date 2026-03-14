@@ -1,50 +1,41 @@
-```html
 <!DOCTYPE html>
 <html>
-
 <head>
 
 <meta charset="utf-8">
-
 <title>RailView</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
 
 body{
 margin:0;
+display:flex;
+height:100vh;
 font-family:Arial;
 }
 
 #map{
-position:absolute;
-left:260px;
-top:0;
-right:0;
-bottom:0;
+flex:1;
 }
 
 #panel{
-position:absolute;
-left:0;
-top:0;
-bottom:0;
-width:260px;
-background:#111;
-color:white;
-padding:20px;
+width:300px;
+background:#f4f4f4;
+padding:15px;
+border-left:1px solid #ccc;
 }
 
-.info{
-margin-top:10px;
+button{
 padding:8px;
-background:#222;
-border-radius:5px;
-}
-
-.train-icon{
-font-size:26px;
+margin-top:10px;
+width:100%;
 }
 
 </style>
@@ -53,30 +44,26 @@ font-size:26px;
 
 <body>
 
+<div id="map"></div>
+
 <div id="panel">
 
-<h2>🚆 RailView</h2>
+<h2>RailView</h2>
 
-<div class="info">Comboio: <span id="p_name">---</span></div>
-<div class="info">Latitude: <span id="p_lat">---</span></div>
-<div class="info">Longitude: <span id="p_lng">---</span></div>
-<div class="info">Heading: <span id="p_heading">---</span></div>
-<div class="info">Estado: <span id="p_state">---</span></div>
+<div id="trainInfo">
+
+Selecione um comboio
 
 </div>
 
-<div id="map"></div>
+<button onclick="toggleRoute()">Mostrar / esconder rota</button>
 
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</div>
 
 <script>
 
-var firebaseConfig = {
-
-  apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
+var firebaseConfig={
+ apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
   authDomain: "locotracer.firebaseapp.com",
   databaseURL: "https://locotracer-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "locotracer",
@@ -84,51 +71,58 @@ var firebaseConfig = {
   messagingSenderId: "364605919766",
   appId: "1:364605919766:web:c50f21644bf289fa29db37",
   measurementId: "G-W0XJFNLHK8"
-
 };
 
 firebase.initializeApp(firebaseConfig);
 
 var db=firebase.database();
 
-var map=L.map('map').setView([-25.96,32.58],12);
+var map=L.map("map").setView([-25.9,32.5],12);
 
-L.tileLayer(
-'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-).addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-var markers={};
+let markers={};
 
-function createTrainIcon(angle,color){
+let selectedTrain=null;
 
-return L.divIcon({
+let showRoute=false;
 
-className:'train-icon',
+let routePoints=[];
 
-html:`<div style="transform:rotate(${angle}deg);color:${color};">🚆</div>`,
+let routeLine=null;
 
-iconSize:[20,20]
+function getColor(status){
 
-});
+if(status=="moving") return "green";
+if(status=="stopped") return "yellow";
+if(status=="derailment") return "red";
+
+return "gray";
 
 }
 
-function updatePanel(name,data){
+function updatePanel(data){
 
-document.getElementById("p_name").innerHTML=name;
-document.getElementById("p_lat").innerHTML=data.lat.toFixed(6);
-document.getElementById("p_lng").innerHTML=data.lng.toFixed(6);
-document.getElementById("p_heading").innerHTML=data.heading.toFixed(1);
+let html="";
 
-if(data.derailment){
+html+="<b>Train:</b> "+selectedTrain+"<br>";
+html+="Speed: "+data.speed+" km/h<br>";
+html+="Heading: "+data.heading+"°<br>";
+html+="Tilt: "+data.tilt+"°<br>";
+html+="Status: "+data.status+"<br>";
 
-document.getElementById("p_state").innerHTML="DESCARRILAMENTO";
-document.getElementById("p_state").style.color="red";
+document.getElementById("trainInfo").innerHTML=html;
 
-}else{
+}
 
-document.getElementById("p_state").innerHTML="NORMAL";
-document.getElementById("p_state").style.color="lightgreen";
+function toggleRoute(){
+
+showRoute=!showRoute;
+
+if(!showRoute && routeLine){
+
+map.removeLayer(routeLine);
+routePoints=[];
 
 }
 
@@ -136,51 +130,68 @@ document.getElementById("p_state").style.color="lightgreen";
 
 db.ref("trains").on("value",function(snapshot){
 
-var trains=snapshot.val();
+let trains=snapshot.val();
 
-for(var name in trains){
+for(let id in trains){
 
-var data=trains[name];
+let t=trains[id];
 
-var pos=[data.lat,data.lng];
+let lat=t.lat;
+let lng=t.lng;
 
-var color=data.derailment ? "red":"blue";
+if(!markers[id]){
 
-var icon=createTrainIcon(data.heading,color);
+let marker=L.circleMarker([lat,lng],{
 
-if(!markers[name]){
+radius:8,
+color:"#000",
+weight:2,
+fillColor:getColor(t.status),
+fillOpacity:0.9
 
-var marker=L.marker(pos,{icon:icon}).addTo(map);
-
-marker.bindPopup(
-"<b>"+name+"</b><br>"+
-"Lat: "+data.lat.toFixed(6)+"<br>"+
-"Lng: "+data.lng.toFixed(6)
-);
+}).addTo(map);
 
 marker.on("click",function(){
 
-var train=this.trainName;
-
-updatePanel(train,trains[train]);
+selectedTrain=id;
+updatePanel(t);
 
 });
 
-marker.trainName=name;
+markers[id]=marker;
 
-markers[name]=marker;
+}else{
+
+markers[id].setLatLng([lat,lng]);
+
+markers[id].setStyle({
+
+fillColor:getColor(t.status)
+
+});
 
 }
 
-markers[name].setLatLng(pos);
+if(id===selectedTrain){
 
-markers[name].setIcon(icon);
+updatePanel(t);
 
-markers[name].setPopupContent(
-"<b>"+name+"</b><br>"+
-"Lat: "+data.lat.toFixed(6)+"<br>"+
-"Lng: "+data.lng.toFixed(6)
-);
+if(showRoute){
+
+routePoints.push([lat,lng]);
+
+if(routeLine){
+map.removeLayer(routeLine);
+}
+
+routeLine=L.polyline(routePoints,{
+color:"blue",
+weight:3
+}).addTo(map);
+
+}
+
+}
 
 }
 
@@ -191,5 +202,3 @@ markers[name].setPopupContent(
 </body>
 
 </html>
-```
-
