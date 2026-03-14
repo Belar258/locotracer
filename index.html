@@ -1,45 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
-
 <meta charset="utf-8">
 <title>RailView</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
-
-body{
-margin:0;
-display:flex;
-height:100vh;
-font-family:Arial;
+body {
+  margin: 0;
+  display: flex;
+  height: 100vh;
+  font-family: Arial;
 }
 
-#map{
-flex:1;
+#map {
+  flex: 1;
 }
 
-#panel{
-width:300px;
-background:#f4f4f4;
-padding:15px;
-border-left:1px solid #ccc;
+#panel {
+  width: 250px; /* painel mais estreito */
+  background: #f4f4f4;
+  padding: 15px;
+  border-left: 1px solid #ccc;
 }
 
-button{
-padding:8px;
-margin-top:10px;
-width:100%;
+button {
+  padding: 8px;
+  margin-top: 10px;
+  width: 100%;
+  cursor: pointer;
 }
-
 </style>
-
 </head>
 
 <body>
@@ -47,23 +42,14 @@ width:100%;
 <div id="map"></div>
 
 <div id="panel">
-
-<h2>RailView</h2>
-
-<div id="trainInfo">
-
-Selecione um comboio
-
-</div>
-
-<button onclick="toggleRoute()">Mostrar / esconder rota</button>
-
+  <h2>RailView</h2>
+  <div id="trainInfo">Selecione um comboio</div>
+  <button onclick="toggleRoute()">Rota</button>
 </div>
 
 <script>
-
-var firebaseConfig={
- apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
+var firebaseConfig = {
+    apiKey: "AIzaSyDQ9cMPQOG3TBU-9cB3MH0L4POWp45-Ff4",
   authDomain: "locotracer.firebaseapp.com",
   databaseURL: "https://locotracer-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "locotracer",
@@ -72,133 +58,103 @@ var firebaseConfig={
   appId: "1:364605919766:web:c50f21644bf289fa29db37",
   measurementId: "G-W0XJFNLHK8"
 };
-
 firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
 
-var db=firebase.database();
-
-var map=L.map("map").setView([-25.9,32.5],12);
-
+var map = L.map("map").setView([-25.9, 32.5], 12);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-let markers={};
+let markers = {};
+let selectedTrain = null;
+let showRoute = false;
+let routePoints = [];
+let routeLine = null;
 
-let selectedTrain=null;
-
-let showRoute=false;
-
-let routePoints=[];
-
-let routeLine=null;
-
-function getColor(status){
-
-if(status=="moving") return "green";
-if(status=="stopped") return "yellow";
-if(status=="derailment") return "red";
-
-return "gray";
-
+function getColor(status) {
+  switch(status){
+    case "moving": return "#28a745"; // verde
+    case "stopped": return "#ffc107"; // amarelo
+    case "derailment": return "#dc3545"; // vermelho
+    default: return "#6c757d"; // cinza
+  }
 }
 
-function updatePanel(data){
-
-let html="";
-
-html+="<b>Train:</b> "+selectedTrain+"<br>";
-html+="Speed: "+data.speed+" km/h<br>";
-html+="Heading: "+data.heading+"°<br>";
-html+="Tilt: "+data.tilt+"°<br>";
-html+="Status: "+data.status+"<br>";
-
-document.getElementById("trainInfo").innerHTML=html;
-
+function updatePanel(data, lat, lng) {
+  let html = "";
+  html += "<b>Train:</b> " + selectedTrain + "<br>";
+  html += "<b>Lat:</b> " + lat.toFixed(5) + "<br>";
+  html += "<b>Lng:</b> " + lng.toFixed(5) + "<br>";
+  html += "<b>Speed:</b> " + data.speed + " km/h<br>";
+  html += "<b>Heading:</b> " + data.heading + "°<br>";
+  html += "<b>Tilt:</b> " + data.tilt + "°<br>";
+  html += "<b>Status:</b> " + data.status + "<br>";
+  document.getElementById("trainInfo").innerHTML = html;
 }
 
-function toggleRoute(){
-
-showRoute=!showRoute;
-
-if(!showRoute && routeLine){
-
-map.removeLayer(routeLine);
-routePoints=[];
-
+function toggleRoute() {
+  showRoute = !showRoute;
+  if (!showRoute && routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
 }
 
-}
+db.ref("trains").on("value", function(snapshot) {
+  let trains = snapshot.val();
+  for (let id in trains) {
+    let t = trains[id];
+    let lat = t.lat;
+    let lng = t.lng;
 
-db.ref("trains").on("value",function(snapshot){
+    if (!markers[id]) {
+      let marker = L.circleMarker([lat, lng], {
+        radius: 8,
+        color: "#000",
+        weight: 2,
+        fillColor: getColor(t.status),
+        fillOpacity: 0.9
+      }).addTo(map);
 
-let trains=snapshot.val();
+      marker.bindTooltip("Train: " + id);
 
-for(let id in trains){
+      marker.on("click", function() {
+        if (selectedTrain !== id) {
+          // reset rota ao trocar de comboio
+          routePoints = [];
+          if (routeLine) {
+            map.removeLayer(routeLine);
+            routeLine = null;
+          }
+        }
+        selectedTrain = id;
+        updatePanel(t, lat, lng);
+      });
 
-let t=trains[id];
+      markers[id] = marker;
 
-let lat=t.lat;
-let lng=t.lng;
+    } else {
+      markers[id].setLatLng([lat, lng]);
+      markers[id].setStyle({ fillColor: getColor(t.status) });
+    }
 
-if(!markers[id]){
+    if (id === selectedTrain) {
+      updatePanel(t, lat, lng);
 
-let marker=L.circleMarker([lat,lng],{
+      if (showRoute) {
+        const lastPoint = routePoints[routePoints.length - 1];
+        if (!lastPoint || lastPoint[0] !== lat || lastPoint[1] !== lng) {
+          routePoints.push([lat, lng]);
+        }
 
-radius:8,
-color:"#000",
-weight:2,
-fillColor:getColor(t.status),
-fillOpacity:0.9
-
-}).addTo(map);
-
-marker.on("click",function(){
-
-selectedTrain=id;
-updatePanel(t);
-
+        if (routeLine) {
+          map.removeLayer(routeLine);
+        }
+        routeLine = L.polyline(routePoints, { color: "blue", weight: 3 }).addTo(map);
+      }
+    }
+  }
 });
-
-markers[id]=marker;
-
-}else{
-
-markers[id].setLatLng([lat,lng]);
-
-markers[id].setStyle({
-
-fillColor:getColor(t.status)
-
-});
-
-}
-
-if(id===selectedTrain){
-
-updatePanel(t);
-
-if(showRoute){
-
-routePoints.push([lat,lng]);
-
-if(routeLine){
-map.removeLayer(routeLine);
-}
-
-routeLine=L.polyline(routePoints,{
-color:"blue",
-weight:3
-}).addTo(map);
-
-}
-
-}
-
-}
-
-});
-
 </script>
 
 </body>
-
 </html>
