@@ -82,8 +82,8 @@ function getColor(status) {
 function updatePanel(data, lat, lng) {
   let html = "";
   html += "<b>Train:</b> " + selectedTrain + "<br>";
-  html += "<b>Lat:</b> " + lat.toFixed(5) + "<br>";
-  html += "<b>Lng:</b> " + lng.toFixed(5) + "<br>";
+  html += "<b>Lat:</b> " + lat.toFixed(6) + "<br>";
+  html += "<b>Lng:</b> " + lng.toFixed(6) + "<br>";
   html += "<b>Speed:</b> " + data.speed + " km/h<br>";
   html += "<b>Heading:</b> " + data.heading + "°<br>";
   html += "<b>Tilt:</b> " + data.tilt + "°<br>";
